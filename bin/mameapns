@@ -1,0 +1,130 @@
+#! /usr/bin/env ruby
+
+require "bundler"
+Bundler.setup
+require "thor"
+
+$:.unshift File.expand_path("../../lib", __FILE__)
+
+require "mameapns"
+
+module Mameapns
+  class MameDRb
+    def initialize(queue)
+      @queue = queue
+    end
+    
+    def deliver(token, alert)
+      @queue.push([token, alert])
+    end
+  end
+end
+
+
+class Mameapns::Runner < Thor
+  desc "deliver", "send a notification to your device."
+  option :cert, type: :string, aliases: "-c", desc: "certificate file", required: true
+  option :pass, type: :string, aliases: "-p", desc: "certificate password", required: true
+  option :token, type: :string, aliases: "-t", desc: "target devise token", required: true
+  option :develop, type: :boolean, aliases: "-d", desc: "developer mode", default: false
+  
+  def deliver
+    unless File.file?(options[:cert])
+      puts "#{options[:cert]} is invalid file or not exists."
+      exit(1)
+    end
+
+    cert = File.read(options[:cert])
+    pass = options[:pass]
+
+    @apns = Mameapns.new(
+      ssl_cert: cert,
+      ssl_cert_key: cert,
+      ssl_cert_pass: pass,
+      develop: options[:develop]
+      )
+
+    @apns.on_sent do |notification|
+      puts "Sent notification complete."
+      p notification
+      @apns.stop
+    end
+
+    @apns.on_delivery_error do |notification, error|
+      puts "error occured during sending notification."
+      p error
+      @apns.stop
+    end
+
+    @apns.on_exception do |error|
+      puts "critical error occured during sending notification."
+      p error
+      @apns.stop
+    end
+
+    @apns.start
+
+    @apns.deliver(
+      Mameapns::Notification.new(
+        device_token: options[:token],
+        alert: "test message"
+        ))
+
+    @apns.wait_stop
+  end
+
+  desc "drb", "Run drb server that provides handle apns notifications."
+  option :cert, type: :string, aliases: "-c", desc: "certificate file", required: true
+  option :pass, type: :string, aliases: "-p", desc: "certificate password", required: true
+  option :develop, type: :boolean, aliases: "-d", desc: "developer mode", default: false
+  option :port, type: :numeric, aliases: "-P", desc: "listen port", default: 11875
+  def drb
+    require "drb/drb"
+    require "thread"
+
+    unless File.file?(options[:cert])
+      puts "#{options[:cert]} is invalid file or not exists."
+      exit(1)
+    end
+
+    @queue = Queue.new
+
+    cert = File.read(options[:cert])
+    pass = options[:pass]
+
+    @apns = Mameapns.new(
+      ssl_cert: cert,
+      ssl_cert_key: cert,
+      ssl_cert_pass: pass,
+      develop: options[:develop]
+      )
+
+    @apns.start
+
+    drb_server = DRb::DRbServer.new("druby://localhost:#{options[:port]}", Mameapns::MameDRb.new(@queue))
+    
+    [:TERM, :QUIT, :INT].each do |sig|
+      trap(sig) do
+        puts "Going to shutdown..."
+        drb_server.stop_service
+        @apns.stop
+        @apns.wait_stop
+        exit(1)
+      end
+    end
+
+
+    while tuple = @queue.pop
+      @apns.deliver(
+          Mameapns::Notification.new(
+            device_token: tuple[0],
+            alert: tuple[1]
+          ))
+
+    end
+    
+    # drb_server.stop_server
+  end
+end
+
+Mameapns::Runner.start
