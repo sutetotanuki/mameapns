@@ -91,18 +91,14 @@ module Mameapns
 
     # To attempt to connect to apns server and close actually
     # it used to check ssl cert files and ohter configurations.
+    #
+    # raises:
+    #   ConnectionError: Unable to connect to apns. generaly socket error.
+    #   SSLError:        Given invalid SSL Cert.
+    #       
     def attempt_to_connect?
-      can_connect = true
-      
-      begin 
-        @deliver_session.connect?
-      rescue ConnectionError => e
-        can_connect = false
-      ensure
-        @deliver_session.close
-      end
-
-      can_connect
+      @deliver_session.connect
+      @deliver_session.close
     end
 
     [:feedback, :sent, :delivery_error, :exception].each do |event|

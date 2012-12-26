@@ -103,7 +103,7 @@ module Mameapns
       rescue OpenSSL::SSL::SSLError => e
         raise SSLError, e
       rescue SocketError => e
-        raise OpenConnectionError, e
+        raise ConnectionError, e
       end
     end
   end
