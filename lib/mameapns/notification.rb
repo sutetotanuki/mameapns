@@ -12,7 +12,7 @@ module Mameapns
     options :sound, default: "1.aiff"
     options :alert
     options :attributes_for_device
-    options :related_infomation
+    options :related_information
 
     def device_token=(token)
       if !token.nil?
