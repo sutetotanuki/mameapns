@@ -28,6 +28,13 @@ module Mameapns
     end
     
     def start
+      setup_session
+
+      @deliver_session.start
+      @feedback_session.start
+    end
+
+    def setup_session
       @deliver_session = Session::Deliver.new(
         ssl_cert:      ssl_cert,
         ssl_cert_key:  ssl_cert_key,
@@ -50,9 +57,6 @@ module Mameapns
 
       @feedback_session.on_error(&method(:handle_feedback))
       @feedback_session.on_exception(&method(:handle_exception))
-
-      @deliver_session.start
-      @feedback_session.start
     end
 
     def stop
@@ -97,6 +101,8 @@ module Mameapns
     #   SSLError:        Given invalid SSL Cert.
     #       
     def attempt_to_connect?
+      setup_session
+      
       @deliver_session.connect
       @deliver_session.close
     end
