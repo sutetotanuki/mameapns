@@ -89,6 +89,22 @@ module Mameapns
       @on_delivery_error = block
     end
 
+    # To attempt to connect to apns server and close actually
+    # it used to check ssl cert files and ohter configurations.
+    def attempt_to_connect?
+      can_connect = true
+      
+      begin 
+        @deliver_session.connect?
+      rescue ConnectionError => e
+        can_connect = false
+      ensure
+        @deliver_session.close
+      end
+
+      can_connect
+    end
+
     [:feedback, :sent, :delivery_error, :exception].each do |event|
       event_name = "on_#{event}"
       define_method(event_name) do |&block|

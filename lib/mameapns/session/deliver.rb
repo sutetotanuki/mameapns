@@ -21,7 +21,11 @@ module Mameapns
         connect
         
         while notification = queue.pop
-          deliver(notification)
+          begin
+            deliver(notification)
+          rescue ConnectionError => e
+            handle_error(notification, e)
+          end
         end
 
         close
